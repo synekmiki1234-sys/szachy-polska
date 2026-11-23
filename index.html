@@ -1,0 +1,155 @@
+<!DOCTYPE html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Szachy Polska</title>
+<script src="https://accounts.google.com/gsi/client" async></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root{--l:#ebecd0;--d:#779556;--pw:#fff;--pb:#222;--gl:#0000}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#1b1f4a,#0a0c1c 60%);color:#eef;font-family:system-ui,sans-serif;min-height:100vh}
+nav{display:flex;gap:8px;padding:10px 16px;background:#10142e;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+nav b{font-size:20px;margin-right:auto;background:linear-gradient(90deg,#7cf,#c6f);-webkit-background-clip:text;color:transparent}
+button{background:#2a3170;color:#fff;border:0;border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:600}button:hover{filter:brightness(1.3)}
+.g{background:linear-gradient(135deg,#3ddc84,#1b9e5a)}
+main{max-width:1000px;margin:auto;padding:16px}.card{background:#171b3a;border-radius:14px;padding:16px;margin:10px 0}
+#bd{display:grid;flex:none;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));width:min(92vw,560px);height:min(92vw,560px);border-radius:10px;overflow:hidden;box-shadow:0 0 40px var(--gl);position:relative}
+.sq{overflow:hidden;min-width:0;display:flex;align-items:center;justify-content:center;font-size:min(9vw,56px);position:relative;cursor:pointer;user-select:none}
+.sq.l{background:var(--l)}.sq.d{background:var(--d)}.sq.sel{outline:4px solid #ff0;outline-offset:-4px}
+.sq.mv::after{content:"";width:28%;height:28%;border-radius:50%;background:#0006;position:absolute}.sq.chk{box-shadow:inset 0 0 30px 10px #f00}
+.p{display:block;line-height:1}.p.w{color:var(--pw);text-shadow:0 0 3px #000,0 0 9px var(--gl)}.p.b{color:var(--pb);text-shadow:0 0 3px #fff9,0 0 9px var(--gl)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.it{border-radius:12px;padding:10px;background:#1f2450;border:2px solid var(--rc);text-align:center;font-size:13px;cursor:pointer}.it.off{opacity:.35}
+.pv{height:64px;border-radius:8px;margin-bottom:6px;display:flex;font-size:34px;overflow:hidden}.pv div{flex:1;display:flex;align-items:center;justify-content:center;text-shadow:0 0 8px var(--gl)}
+#ov{position:fixed;inset:0;background:#000d;display:flex;align-items:center;justify-content:center;z-index:9;flex-direction:column;overflow:hidden}#ov:empty{display:none}
+td{padding:6px 12px}#bd.fl,#bd.fl .sq{rotate:180deg}
+.hero{text-align:center;padding:30px 10px;border-radius:18px;background:linear-gradient(135deg,#2a1a6e,#1b3a8a 60%,#0e6ea8);margin-bottom:14px;box-shadow:0 0 40px #5b3fb355}.hero h1{margin:0 0 6px;font-size:clamp(26px,6vw,44px);letter-spacing:2px}
+.big{font-size:22px;padding:18px 36px;margin-top:14px;background:linear-gradient(135deg,#3ddc84,#12a35d);border-radius:14px;box-shadow:0 0 30px #3ddc8488}.big small{display:block;font-size:12px;font-weight:400}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.tiles .card{margin:0}
+</style></head><body><nav id="nv"></nav><main id="mn"></main><div id="ov"></div>
+<script>
+const GID='567888581539-hugfts5f2sght90bmsa5n54qimafbii4.apps.googleusercontent.com';
+const $=s=>document.querySelector(s),ov=$('#ov'),mn=$('#mn');
+const R=['Zwykły','Rzadki','Epicki','Legendarny','Mityczny'],RC=['#9aa8b8','#4aa8ff','#b266ff','#ffb400','#ff3d6e'],RF=[20,60,150,400,1000];
+// [nazwa,rzadkość,jasne,ciemne,białe,czarne,poświata]
+const S=[['Klasyczny',0,'#ebecd0','#779556','#fff','#222','#0000'],['Drewno',0,'#f0d9b5','#b58863','#fff','#2b1a0e','#0000'],['Ocean',0,'#cfe8f5','#4a8fb8','#fff','#06223a','#0000'],['Róż',0,'#ffe0ec','#e77fa5','#fff','#5a1030','#0000'],['Noc',0,'#6a6f8f','#2c3050','#e8ecff','#0a0c1a','#0000'],['Piasek',0,'#f6e7bf','#d2a45a','#fff','#4a2e08','#0000'],['Mięta',0,'#e3fff3','#4fbf8f','#fff','#0c3a28','#0000'],['Lawenda',0,'#efe6ff','#9a80d6','#fff','#2a1458','#0000'],['Beton',0,'#cfcfcf','#7b7b7b','#fff','#1a1a1a','#0000'],['Cytryna',0,'#fffbcc','#c8c34a','#fff','#3a3a00','#0000'],
+['Lód',1,'linear-gradient(135deg,#eaffff,#bfeaff)','linear-gradient(135deg,#6fc3ee,#2f7fc0)','#f4ffff','#0b3a66','#9ff'],['Lawa',1,'linear-gradient(#ffd27a,#ff8a3a)','linear-gradient(#a11,#400)','#ffe9a0','#2a0000','#f60'],['Las',1,'linear-gradient(#d7f5c0,#8ed16a)','linear-gradient(#2e7d32,#0e3d12)','#f0ffd8','#0b2a0d','#7f7'],['Zachód',1,'linear-gradient(#ffd1a1,#ff7e9d)','linear-gradient(#a24bd6,#4a1a7a)','#fff0d0','#2a0a3a','#f9a'],['Cyber',1,'#0e1b2e','#16304f','#0ff','#f0f','#0ff'],['Matrix',1,'#0a2a12','#031a0a','#7fff9a','#00ff41','#0f4'],['Cukierek',1,'repeating-linear-gradient(45deg,#fff,#fff 8px,#ffc2d9 8px,#ffc2d9 16px)','repeating-linear-gradient(45deg,#ff6fa5,#ff6fa5 8px,#ff3d85 8px,#ff3d85 16px)','#fff','#6a0030','#f6a'],['Marmur',1,'linear-gradient(135deg,#fafafa,#d6d6e0)','linear-gradient(135deg,#6a6a7a,#33333f)','#fff','#111','#0000'],
+['Galaxy',2,'radial-gradient(circle at 30% 30%,#c4a7ff,#5b3fb3 55%,#1b1146)','radial-gradient(circle at 70% 60%,#ff7ad9,#3a1a7a 50%,#0b0828)','#f3e8ff','#120a30','#b6f'],['Neon Miasto',2,'linear-gradient(135deg,#1a0033,#47007a)','linear-gradient(135deg,#00122e,#003a7a)','#ff4dff','#4dffff','#f0f'],['Złoto i Czerń',2,'linear-gradient(135deg,#ffe58a,#c99a1a)','linear-gradient(135deg,#1a1a1a,#000)','#fff4c2','#c99a1a','#fc0'],['Aurora',2,'linear-gradient(160deg,#0b1f3a,#1fbf8f 60%,#7a5cff)','linear-gradient(160deg,#04101f,#0a6a5a 60%,#3a2a9a)','#d8fff0','#021a18','#3fc'],['Krew Księżyca',2,'radial-gradient(#ff9aa8,#8a1030)','radial-gradient(#5a0a20,#14000a)','#ffe0e6','#1a0008','#f24'],['Kryształ',2,'linear-gradient(135deg,#fff,#b9f2ff 40%,#e6d4ff)','linear-gradient(135deg,#7fd8ff,#8a6bff)','#fff','#1a1a5a','#9ff'],
+['Supernowa',3,'radial-gradient(circle,#fff6c2,#ffb100 50%,#ff4d00)','radial-gradient(circle,#ff4d00,#4a0000 70%)','#fff','#200','#fa0'],['Smok',3,'linear-gradient(135deg,#ffcf5a,#ff5a1f)','linear-gradient(135deg,#3a0a0a,#120000)','#ffe29a','#ff5a1f','#f80'],['Pustka',3,'radial-gradient(circle,#3a1a6a,#0a0414)','radial-gradient(circle,#150a2a,#000)','#e0c8ff','#7a3cff','#a5f'],['Holo',3,'linear-gradient(135deg,#ff9ad5,#9affd5,#9ad5ff,#ffd59a)','linear-gradient(135deg,#d59aff,#9affea,#ffe49a,#ff9a9a)','#fff','#221a44','#fff'],
+['Wszechświat',4,'radial-gradient(circle at 20% 20%,#fff 0 1px,#0000 2px),radial-gradient(circle at 70% 40%,#fff 0 1px,#0000 2px),linear-gradient(135deg,#7b2cff,#ff4da6 50%,#2cc8ff)','radial-gradient(circle at 40% 70%,#fff 0 1px,#0000 2px),linear-gradient(135deg,#0b0030,#3a0a6a 50%,#001a4a)','#fff','#ffd6ff','#f0f'],['Władca Czasu',4,'conic-gradient(#ffe,#fd8,#ffe,#fd8,#ffe)','conic-gradient(from 90deg,#210,#640,#210,#640,#210)','#fff7d0','#ffb800','#fd0']];
+// [nazwa,rzadkość,start-transform,start-filter]
+const A=[['Skok',0,'translateY(-60%)','none'],['Z lewej',0,'translateX(-300%)','none'],['Z prawej',0,'translateX(300%)','none'],['Zoom',0,'scale(.1)','none'],['Spadanie',0,'translateY(-400%)','none'],['Flip',0,'rotateY(900deg)','none'],['Wir',0,'rotate(1080deg) scale(.2)','none'],
+['Pixel',1,'scale(.3)','contrast(0) blur(3px)'],['Duch',1,'scale(1.2)','blur(6px)'],['Sprężyna',1,'scaleY(.1) scaleX(2)','none'],['Flip X',1,'rotateX(720deg)','none'],['Tęcza',1,'scale(.5)','hue-rotate(360deg) saturate(5)'],
+['Neon',2,'scale(1)','brightness(8) blur(4px)'],['Glitch',2,'skew(40deg) translateX(30%)','contrast(5)'],['Kometa',2,'translate(-400%,-400%) scale(.3)','none'],['Teleport',2,'scale(0) rotate(720deg)','blur(8px)'],
+['Tornado',3,'rotate(-1440deg) scale(0)','none'],['Spirala',3,'rotate(540deg) translateY(-300%)','none'],['Czarna dziura',4,'scale(6) rotate(180deg)','brightness(0)'],['Wybuch gwiazdy',4,'scale(4)','brightness(10) blur(12px)']];
+const ID=[...S.map((x,i)=>'s'+i),...A.map((x,i)=>'a'+i)],it=id=>id[0]=='s'?S[+id.slice(1)]:A[+id.slice(1)];
+let P;try{P=JSON.parse(localStorage.cp)}catch(e){}
+P=P||{n:'',img:'',elo:800,xp:0,pts:300,own:['s0','a0'],s:'s0',a:'a0',w:0,g:0,st:0,day:''};
+const sv=()=>{try{localStorage.cp=JSON.stringify(P)}catch(e){}},lvl=()=>Math.floor(Math.sqrt(P.xp/40))+1;
+function skin(){const k=S[+P.s.slice(1)],r=document.documentElement.style;['l','d','pw','pb','gl'].forEach((n,i)=>r.setProperty('--'+n,k[i+2]))}
+function nav(){$('#nv').innerHTML='<b>♞ SZACHY POLSKA</b>'+[['home','Graj'],['shop','Skrzynki'],['inv','Kolekcja'],['rank','Ranking']].map(x=>`<button onclick="go('${x[0]}')">${x[1]}</button>`).join('')+`<button onclick="logout()">Wyloguj</button><span>${P.img?`<img src="${P.img}" width="26" style="border-radius:50%;vertical-align:middle">`:''} ${P.n} · poz. ${lvl()} · ⭐${P.elo} · 💎${P.pts}</span>`}
+function go(v){if(typeof G!="undefined"&&G&&G.on&&!G.over){G.over=1;sk.emit("rs")}skin();nav();V[v]()}
+// ===== SILNIK SZACHOWY =====
+const D=[[1,0],[-1,0],[0,1],[0,-1]],Gd=[[1,1],[1,-1],[-1,1],[-1,-1]],N=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]],U={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟'};
+const st=()=>{const b=Array(64).fill(null),o='RNBQKBNR';for(let i=0;i<8;i++){b[i]='b'+o[i];b[8+i]='bP';b[48+i]='wP';b[56+i]='w'+o[i]}return{b,t:'w',cs:'KQkq',ep:-1}};
+function att(b,i,by){const r=i>>3,c=i&7,g=(y,x)=>y>=0&&y<8&&x>=0&&x<8?b[y*8+x]:null,d=by=='w'?1:-1;
+if(g(r+d,c-1)==by+'P'||g(r+d,c+1)==by+'P')return 1;
+for(const[a,e]of N)if(g(r+a,c+e)==by+'N')return 1;
+for(let a=-1;a<2;a++)for(let e=-1;e<2;e++)if((a||e)&&g(r+a,c+e)==by+'K')return 1;
+for(const[a,e]of D.concat(Gd)){let y=r+a,x=c+e;while(y>=0&&y<8&&x>=0&&x<8){const q=b[y*8+x];if(q){if(q[0]==by){const k=q[1];if(k=='Q'||(k=='R'&&(!a||!e))||(k=='B'&&a&&e))return 1}break}y+=a;x+=e}}return 0}
+function gen(s){const b=s.b,col=s.t,op=col=='w'?'b':'w',M=[];
+for(let i=0;i<64;i++){const p=b[i];if(!p||p[0]!=col)continue;const r=i>>3,c=i&7,k=p[1],add=(t,x)=>M.push({f:i,t,...x});
+if(k=='P'){const dr=col=='w'?-1:1,one=i+dr*8,pr=(r+dr)==(col=='w'?0:7)?{pr:1}:{};
+if(!b[one]){add(one,pr);if(r==(col=='w'?6:1)&&!b[one+dr*8])add(one+dr*8)}
+for(const dc of[-1,1]){const cc=c+dc;if(cc<0||cc>7)continue;const t=one+dc;if(b[t]&&b[t][0]==op)add(t,pr);else if(t==s.ep)add(t,{ep:1})}}
+else if(k=='N'||k=='K'){for(const[a,e]of(k=='N'?N:D.concat(Gd))){const y=r+a,x=c+e;if(y<0||y>7||x<0||x>7)continue;const q=b[y*8+x];if(!q||q[0]==op)add(y*8+x)}
+if(k=='K'){const base=col=='w'?56:0;if(i==base+4&&!att(b,i,op)){const ks=col=='w'?'K':'k',qs=col=='w'?'Q':'q';
+if(s.cs.includes(ks)&&!b[base+5]&&!b[base+6]&&b[base+7]==col+'R'&&!att(b,base+5,op)&&!att(b,base+6,op))add(base+6,{ca:1});
+if(s.cs.includes(qs)&&!b[base+3]&&!b[base+2]&&!b[base+1]&&b[base]==col+'R'&&!att(b,base+3,op)&&!att(b,base+2,op))add(base+2,{ca:1})}}}
+else{const dirs=k=='R'?D:k=='B'?Gd:D.concat(Gd);for(const[a,e]of dirs){let y=r+a,x=c+e;while(y>=0&&y<8&&x>=0&&x<8){const q=b[y*8+x];if(q){if(q[0]==op)add(y*8+x);break}add(y*8+x);y+=a;x+=e}}}}
+return M}
+function apply(s,m){const b=s.b.slice(),p=b[m.f];b[m.t]=p;b[m.f]=null;if(m.ep)b[m.t+(s.t=='w'?8:-8)]=null;if(m.pr)b[m.t]=s.t+'Q';
+if(m.ca){const[a,e]=m.t>m.f?[m.f+3,m.f+1]:[m.f-4,m.f-1];b[e]=b[a];b[a]=null}
+let cs=s.cs;if(p[1]=='K')cs=cs.replace(s.t=='w'?/[KQ]/g:/[kq]/g,'');const rm={0:'q',7:'k',56:'Q',63:'K'};[m.f,m.t].forEach(x=>{if(rm[x])cs=cs.replace(rm[x],'')});
+return{b,t:s.t=='w'?'b':'w',cs,ep:p[1]=='P'&&Math.abs(m.t-m.f)==16?(m.f+m.t)/2:-1}}
+const inCh=s=>att(s.b,s.b.indexOf(s.t+'K'),s.t=='w'?'b':'w'),legal=s=>gen(s).filter(m=>{const n=apply(s,m);return!att(n.b,n.b.indexOf(s.t+'K'),n.t)});
+const VL={P:100,N:320,B:330,R:500,Q:900,K:0};
+function ev(s){let v=0;s.b.forEach((p,i)=>{if(!p)return;const x=VL[p[1]]+(p[1]=='K'||p[1]=='R'?0:(7-Math.abs((i&7)-3.5)-Math.abs((i>>3)-3.5))*3);v+=p[0]=='w'?x:-x});return v}
+function se(s,d,al,be){const ms=legal(s);if(!ms.length)return inCh(s)?(s.t=='w'?-1e5-d:1e5+d):0;if(!d)return ev(s);ms.sort((a,b)=>!s.b[b.t]-!s.b[a.t]);const mx=s.t=='w';let best=mx?-1e9:1e9;
+for(const m of ms){const v=se(apply(s,m),d-1,al,be);if(mx){best=Math.max(best,v);al=Math.max(al,v)}else{best=Math.min(best,v);be=Math.min(be,v)}if(be<=al)break}return best}
+// ===== GRA =====
+let G;const sq=i=>'abcdefgh'[i&7]+(8-(i>>3));
+const X=['conic-gradient(#f0f,#0ff,#f0f)','radial-gradient(#ff0,#f60)','radial-gradient(#0ff,#06f)','conic-gradient(#0f8,#000,#0f8)','linear-gradient(135deg,#f06,#60f)','radial-gradient(circle,#fff,#a0f 60%,#000)'];
+function startG(bot,h){const t=window.FT!=null?window.FT:$('#tm')?+$('#tm').value:0,s0=$('#vr')&&$('#vr').value=='1'?st960():st();G={s:s0,s0,sel:null,mv:[],bot,h,hist:[],over:0,tm:t,c:[t,t]};clearInterval(window.ck);window.ck=setInterval(tick,1000);
+mn.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center"><div id="bd"></div><div class="card" style="width:260px"><b>${bot?'Bot poz. '+bot+' (⭐'+(250+bot*25)+')':'Gra lokalna'}</b><p id="stt"></p><p id="cl" style="font-size:18px"></p><div id="ml" style="height:190px;overflow:auto;font-size:13px"></div><p>${X.map((b,i)=>`<button style="background:${b};width:38px;height:38px;border-radius:${i%2?'50%':'30%'}" onclick="rx(${i})"></button>`).join(' ')}</p><button onclick="resg()">Poddaj się</button> <button onclick="go('home')">Wyjdź</button></div></div>`;
+dr();if(bot&&h=='b')setTimeout(bt,400)}
+function dr(){const bd=$('#bd'),s=G.s,ck=inCh(s)?s.b.indexOf(s.t+'K'):-1;bd.innerHTML='';bd.className=G.h=='b'&&(G.bot||G.on)?'fl':'';
+s.b.forEach((p,i)=>{const e=document.createElement('div');e.className='sq '+(((i>>3)+(i&7))%2?'d':'l')+(G.sel==i?' sel':'')+(G.mv.some(m=>m.t==i)?' mv':'')+(ck==i?' chk':'');e.onclick=()=>clk(i);if(p)e.innerHTML=`<span class="p ${p[0]}">${U[p[1]]}\uFE0E</span>`;bd.append(e)});
+$('#stt').textContent=G.over?'Koniec partii':(s.t=='w'?'Ruch białych':'Ruch czarnych')+(ck>=0?' – SZACH!':'');
+const ml=$('#ml');if(ml){ml.innerHTML=G.hist.map((m,i)=>(i%2?'':`<br>${i/2+1}. `)+sq(m.f)+sq(m.t)+' ').join('');ml.scrollTop=1e5}}
+function clk(i){if(G.over||((G.bot||G.on)&&G.s.t!=G.h))return;const p=G.s.b[i];if(G.sel!=null){const m=G.mv.find(m=>m.t==i);if(m)return pl(m,0)}
+if(p&&p[0]==G.s.t){G.sel=i;G.mv=legal(G.s).filter(m=>m.f==i)}else{G.sel=null;G.mv=[]}dr()}
+function pl(m,isB){if(G.on&&!isB)sk.emit('mv',{f:m.f,t:m.t});if(G.pz){const n=apply(G.s,m);if(!legal(n).length&&inCh(n)){G.s=n;G.over=1;dr();burst(m.t);P.pts+=25;P.xp+=10;sv();nav();$('#stt').textContent='✅ Mat! +25 💎';setTimeout(puz,1600)}else{G.mv=[];G.sel=null;dr();$('#stt').textContent='❌ To nie mat – spróbuj jeszcze raz'}return}const cap=G.s.b[m.t]||m.ep;G.s=apply(G.s,m);G.hist.push(m);G.mv=[];G.sel=null;dr();
+const k=isB?A[Math.random()*20|0]:A[+P.a.slice(1)];$('#bd').children[m.t].firstChild.animate([{transform:k[2],opacity:0,filter:k[3]},{transform:'none',opacity:1,filter:'none'}],{duration:650,easing:'cubic-bezier(.2,1.3,.4,1)'});
+if(cap){burst(m.t);$('#bd').animate([{transform:'translateX(-7px)'},{transform:'translateX(7px)'},{transform:'none'}],{duration:260})}
+if(!legal(G.s).length){G.over=1;dr();const w=inCh(G.s)?(G.s.t=='w'?'b':'w'):0;fin(w?(w==G.h?1:0):.5,w?'Szach-mat! Wygrywają '+(w=='w'?'białe':'czarne'):'Pat – remis')}
+else if(G.bot&&G.s.t!=G.h)setTimeout(bt,450)}
+function bt(){if(G.over)return;const s=G.s,ms=legal(s),lv=G.bot,d=lv<40?1:lv<80?2:3;let m,bs=-1e9;
+if(Math.random()<(100-lv)/150)m=ms[Math.random()*ms.length|0];else{ms.sort((a,b)=>!s.b[b.t]-!s.b[a.t]);const sg=s.t=='w'?1:-1;for(const x of ms){const v=sg*se(apply(s,x),d-1,-1e9,1e9)+Math.random()*8;if(v>bs){bs=v;m=x}}}pl(m,1)}
+function burst(i){const bd=$('#bd'),q=bd.children[i],x=q.offsetLeft+q.offsetWidth/2,y=q.offsetTop+q.offsetHeight/2;
+for(let j=0;j<18;j++){const d=document.createElement('i'),a=Math.random()*6.28,r=40+Math.random()*90;d.style.cssText=`position:absolute;left:${x}px;top:${y}px;width:11px;height:11px;border-radius:50%;background:hsl(${Math.random()*360},100%,60%);pointer-events:none`;bd.append(d);d.animate([{transform:'none',opacity:1},{transform:`translate(${Math.cos(a)*r}px,${Math.sin(a)*r}px) scale(0)`,opacity:0}],{duration:750}).onfinish=()=>d.remove()}}
+function rx(i,o){const d=document.createElement('div');d.style.cssText=`position:absolute;left:${o?'10%':'40%'};top:40%;width:90px;height:90px;border-radius:${i%2?'50%':'30%'};background:${X[i]};pointer-events:none;box-shadow:0 0 30px #fff8`;$('#bd').append(d);d.animate([{transform:'translateY(0) rotate(0) scale(.2)',opacity:1},{transform:'translateY(-200px) rotate(360deg) scale(1.2)',opacity:0}],{duration:1500}).onfinish=()=>d.remove();if(!o&&G.bot)setTimeout(()=>rx(Math.random()*6|0,1),900);if(!o&&G.on)sk.emit('rx',i)}
+function resg(){if(G.over)return;G.over=1;if(G.on)sk.emit('rs');fin(G.bot||G.on?0:.5,'Poddałeś partię')}
+function fin(res,msg){let ex='';if(G.bot||G.on){const be=G.on?G.oe:250+G.bot*25,e=1/(1+10**((be-P.elo)/400)),o=P.elo;P.elo=Math.round(o+32*(res-e));P.g++;let pts=0;if(res==1){P.w++;P.st++;pts=40+(G.on?30:G.bot)+P.st*10}else if(res==.5)pts=15;else P.st=0;P.pts+=pts;P.xp+=20+res*30;sv();nav();ex=`<p>⭐ ${o} → ${P.elo}<br>💎 +${pts} pkt · seria wygranych: ${P.st}</p>`}
+let nx='';if(G.tr!=null&&res==1){const a=G.tr,b=G.tb;nx=a<2?`<button class="g" onclick="ov.innerHTML='';tour(${a+1},${b})">Runda ${a+2}/3</button> `:`<button class="g" onclick="ov.innerHTML='';opn(T[1])">🏆 Odbierz Skrzynkę Premium</button> `}
+clearInterval(window.ck);setTimeout(()=>{ov.innerHTML=`<div class="card" style="text-align:center"><h2>${msg}</h2>${ex}${nx}<button class="g" onclick="ov.innerHTML='';go('home')">OK</button> <button onclick="review()">Analiza partii</button></div>`},900)}
+// ===== SKRZYNKI =====
+const T=[{n:'Skrzynka Zwykła',c:150,w:[60,28,9,2.5,.5]},{n:'Skrzynka Premium',c:500,w:[20,40,26,11,3]}];
+function prev(id){const k=it(id);return id[0]=='s'?`<div class="pv" style="--gl:${k[6]}"><div style="background:${k[2]};color:${k[4]}">♞\uFE0E</div><div style="background:${k[3]};color:${k[5]}">♞\uFE0E</div></div>`:`<div class="pv" style="background:linear-gradient(135deg,#2a3170,#6a3fb3);justify-content:center;align-items:center;font-size:30px">✨</div>`}
+function opn(t){const w=t.w,tot=w.reduce((a,b)=>a+b);let x=Math.random()*tot,r=0;while(x>w[r]){x-=w[r];r++}
+const pool=ID.filter(i=>it(i)[1]==r),id=pool[Math.random()*pool.length|0],dup=P.own.includes(id);dup?P.pts+=RF[r]:P.own.push(id);sv();nav();
+const c=RC[r],n=r>2?2800:1800;
+ov.innerHTML=`<div id="ry" style="position:absolute;width:1100px;height:1100px;border-radius:50%;opacity:0;background:repeating-conic-gradient(${c}66 0 10deg,#0000 10deg 20deg)"></div><div id="bx" style="font-size:130px;z-index:1">🎁</div><div id="rv" style="z-index:1;text-align:center"></div>`;
+const bx=$('#bx');bx.animate([{transform:'rotate(0)'},{transform:'rotate(-12deg) scale(1.05)'},{transform:'rotate(12deg) scale(1.1)'},{transform:'rotate(0) scale(1.25)'}],{duration:350,iterations:n/350});
+setTimeout(()=>{ov.animate([{background:'#fff'},{background:'#000d'}],{duration:800});bx.style.display='none';const ry=$('#ry');ry.style.opacity=1;ry.animate([{transform:'rotate(0) scale(0)'},{transform:'rotate(180deg) scale(1)'}],{duration:5000,fill:'forwards'});
+const rv=$('#rv');rv.innerHTML=`<div class="it" style="--rc:${c};width:240px;transform:scale(1.3);box-shadow:0 0 60px ${c}">${prev(id)}<b>${it(id)[0]}</b> (${id[0]=='s'?'skin':'animacja'})<br><span style="color:${c}">${R[r]}</span><br>${dup?'Duplikat → +'+RF[r]+' 💎':'NOWY PRZEDMIOT!'}</div><br><br><br><button class="g" onclick="ov.innerHTML='';V.shop()">OK</button>`;
+rv.firstChild.animate([{transform:'scale(0) rotate(-90deg)'},{transform:'scale(1.3)'}],{duration:650,easing:'cubic-bezier(.2,1.6,.4,1)'})},n)}
+function buy(i){const t=T[i];if(i<0){}else if(P.pts<t.c)return alert('Za mało punktów – wygrywaj partie!');else{P.pts-=t.c}sv();nav();opn(t)}
+function daily(){const d=new Date().toDateString();if(P.day==d)return;P.day=d;sv();opn(T[0])}
+// ===== WIDOKI =====
+const V={login(){mn.innerHTML=`<div class="card" style="text-align:center;max-width:420px;margin:60px auto"><h1>♞ Szachy Polska</h1><p>Zaloguj się przez Google, żeby zapisać rangę i kolekcję.</p><div id="gb" style="display:flex;justify-content:center;min-height:44px"></div><p style="font-size:12px">Wpisz swój Client ID w index.html (instrukcja w README).</p><button onclick="demo()">Tryb demo (bez Google)</button></div>`;
+let n=0;const t=setInterval(()=>{const g=$('#gb');if(!g){clearInterval(t);return}if(window.google&&google.accounts){clearInterval(t);google.accounts.id.initialize({client_id:GID,callback:gl});google.accounts.id.renderButton(g,{theme:'filled_blue',size:'large',locale:'pl'})}else if(++n>40){clearInterval(t);g.textContent='Nie załadowano Google. Otwórz grę przez http://localhost:8000 i wyłącz blokowanie reklam/Shields dla tej strony.'}},250)},
+home(){mn.innerHTML=`<div class="hero"><h1>♞ SZACHY POLSKA</h1><p>Witaj, ${P.n}! Poziom ${lvl()} · ⭐${P.elo} · liga ${lg(P.elo)} · wygrane ${P.w}/${P.g} · seria ${P.st}</p><button class="big" onclick="online()">🌍 GRAJ ONLINE<small>losowy gracz z całego świata</small></button></div>
+<div class="tiles"><div class="card"><h3>🤖 Gra z botem</h3><p>Poziom <b id="lt">20</b> (⭐<span id="le">750</span>)</p><input id="lv" type="range" min="1" max="100" value="20" style="width:100%" oninput="lt.textContent=this.value;le.textContent=250+this.value*25"><p><button class="g" onclick="startG(+lv.value,'w')">Białe</button> <button onclick="startG(+lv.value,'b')">Czarne</button> <button onclick="tour(0,+lv.value)">🏆 Turniej</button></p></div>
+<div class="card"><h3>⚙️ Ustawienia partii</h3><p>Tempo<br><select id="tm"><option value="0">bez zegara</option><option value="180">Błyskawiczne 3 min</option><option value="600" selected>Szybkie 10 min</option><option value="1800">Klasyczne 30 min</option></select></p><p>Wariant (z botem)<br><select id="vr"><option value="0">Klasyczne</option><option value="1">Szachy 960 (bez roszady)</option></select></p></div>
+<div class="card"><h3>📦 Skrzynki</h3><p>Masz 💎${P.pts}</p><button onclick="go('shop')">Otwórz sklep</button></div>
+<div class="card"><h3>🧩 Nauka</h3><button onclick="puz()">Zadania</button> <button onclick="go('lek')">Lekcje</button></div></div>`},
+shop(){const d=P.day!=new Date().toDateString();mn.innerHTML=`<div class="card"><h2>Skrzynki</h2><p>Masz 💎${P.pts}. Skrzynka dnia: <button class="g" ${d?'':'disabled'} onclick="daily()">${d?'Odbierz za darmo':'Wróć jutro'}</button></p></div><div class="grid">`+T.map((t,i)=>`<div class="card"><h3>${t.n}</h3><p style="font-size:12px">${R.map((r,j)=>`<span style="color:${RC[j]}">${r} ${t.w[j]}%</span>`).join('<br>')}</p><button class="g" onclick="buy(${i})">Kup za 💎${t.c}</button></div>`).join('')+'</div>'},
+inv(){mn.innerHTML=`<h2>Kolekcja (${P.own.length}/50)</h2><div class="grid">`+ID.map(id=>{const k=it(id),o=P.own.includes(id);return`<div class="it ${o?'':'off'}" style="--rc:${RC[k[1]]}" onclick="eq('${id}',this)">${prev(id)}<b>${o?k[0]:'???'}</b><br><span style="color:${RC[k[1]]}">${R[k[1]]}</span> ${P.s==id||P.a==id?'✔':''}</div>`}).join('')+'</div>'},
+rank(){const nm=['Magnus_PL','Hetman99','SzachMat','KrólowaNocy','Gambit','Roszada','WieżaX','Pionek_Pro','Skoczek','Debiut','Końcówka','Mat_w_3'],L=nm.map((n,i)=>[n,2600-i*130]);L.push([P.n+' (Ty)',P.elo]);L.sort((a,b)=>b[1]-a[1]);
+mn.innerHTML='<div class="card"><h2>Ranking</h2><table>'+L.map((x,i)=>`<tr style="${x[0].includes('(Ty)')?'color:#ffb400':''}"><td>#${i+1}</td><td>${x[0]}</td><td>⭐${x[1]} · ${lg(x[1])}</td></tr>`).join('')+'</table></div>'}};
+function eq(id,el){if(!P.own.includes(id))return;if(id[0]=='s'){P.s=id;skin()}else{P.a=id;const k=it(id);el.firstChild.animate([{transform:k[2],opacity:0,filter:k[3]},{transform:'none',opacity:1,filter:'none'}],{duration:800})}sv();setTimeout(V.inv,id[0]=='s'?0:900)}
+const lg=e=>e<900?'Brąz':e<1200?'Srebro':e<1600?'Złoto':e<2000?'Platyna':'Diament',fm=x=>Math.floor(x/60)+':'+String(x%60).padStart(2,'0');
+function tick(){const e=$('#cl');if(!e||!G||G.over||!G.tm)return;const i=G.s.t=='w'?0:1;G.c[i]--;e.textContent=`⚪ ${fm(G.c[0])}  ⚫ ${fm(G.c[1])}`;if(G.c[i]<=0){G.over=1;const w=i?'w':'b';fin(G.bot||G.on?(w==G.h?1:0):.5,'Czas minął! Wygrywają '+(w=='w'?'białe':'czarne'))}}
+function st960(){const o=Array(8).fill(0),f=()=>{let i;do i=Math.random()*8|0;while(o[i]);return i};o[[0,2,4,6][Math.random()*4|0]]='B';o[[1,3,5,7][Math.random()*4|0]]='B';o[f()]='Q';o[f()]='N';o[f()]='N';
+const e=o.map((x,i)=>x?-1:i).filter(i=>i>=0);o[e[0]]='R';o[e[1]]='K';o[e[2]]='R';const s=st();for(let i=0;i<8;i++){s.b[i]='b'+o[i];s.b[56+i]='w'+o[i]}s.cs='';return s}
+function fen(f){const[p,t]=f.split(' '),b=[];for(const c of p){if(c=='/')continue;if(+c)for(let k=0;k<+c;k++)b.push(null);else b.push((c<'a'?'w':'b')+c.toUpperCase())}return{b,t,cs:'',ep:-1}}
+const PZ=['6k1/5ppp/8/8/8/8/5PPP/R5K1 w','r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w','7k/5Q2/6K1/8/8/8/8/8 w','k7/8/1K6/8/8/8/8/7R w','r5k1/5ppp/8/8/8/8/5PPP/6K1 b','6rk/6pp/8/6N1/8/8/8/6K1 w'];
+function puz(){clearInterval(window.ck);const s=fen(PZ[P.pi=((P.pi||0)+1)%PZ.length]);G={s,sel:null,mv:[],bot:0,h:'',hist:[],over:0,pz:1,tm:0};
+mn.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center"><div id="bd"></div><div class="card" style="width:260px"><b>Zadanie: mat w 1 ruchu</b><p>Ruch ${s.t=='w'?'białych':'czarnych'}.</p><p id="stt"></p><div id="ml" style="display:none"></div><button onclick="puz()">Następne zadanie</button> <button onclick="go('home')">Wyjdź</button></div></div>`;dr()}
+function tour(r,b){startG(Math.min(100,b+r*8),'w');G.tr=r;G.tb=b}
+function review(){let s=G.s0,L=[],T=[[],[]];G.hist.forEach((m,i)=>{const sg=s.t=='w'?1:-1,sc=x=>sg*se(apply(s,x),1,-1e9,1e9);let b=-1e9;legal(s).forEach(x=>b=Math.max(b,sc(x)));const l=Math.max(0,b-sc(m));T[i%2].push(l);if(l>=60)L.push(`${i/2+1|0}${i%2?'...':'.'} ${sq(m.f)}${sq(m.t)} ${l>200?'??':l>100?'?':'?!'}`);s=apply(s,m)});
+const ac=a=>a.length?Math.max(0,Math.round(100-a.reduce((x,y)=>x+y,0)/a.length/3)):100;
+ov.innerHTML=`<div class="card" style="max-width:420px"><h2>Przegląd partii</h2><p>Dokładność: białe ${ac(T[0])}% · czarne ${ac(T[1])}%</p><p>${L.join(' · ')||'Brak poważnych błędów'}</p><button class="g" onclick="ov.innerHTML=''">Zamknij</button></div>`}
+V.lek=()=>{const L=[['Jak chodzą bierki','Wieża chodzi po liniach, goniec po skosach, hetman łączy oba ruchy, skoczek skacze literą L, król idzie o jedno pole, a pionek idzie do przodu i bije na skos.'],['Roszada i bicie w przelocie','Roszada to ruch króla i wieży naraz, jeśli żadna się jeszcze nie ruszyła, a król nie przechodzi przez szach. Bicie w przelocie: pionek bije pionka, który właśnie ruszył się o dwa pola.'],['Trzy zasady debiutu','Walcz o środek, wyprowadź skoczki i gońce, zrób roszadę przed atakiem. Nie ruszaj tą samą figurą dwa razy bez powodu.'],['Debiuty','Włoska: 1.e4 e5 2.Sf3 Sc6 3.Gc4. Hiszpańska: 1.e4 e5 2.Sf3 Sc6 3.Gb5. Sycylijska: 1.e4 c5. Gambit hetmański: 1.d4 d5 2.c4.'],['Mat w końcówce','Hetman z królem lub wieża z królem zamatują samotnego króla. Uważaj na pat, czyli brak legalnych ruchów bez szacha.']];
+mn.innerHTML='<h2>Lekcje</h2>'+L.map(x=>`<div class="card"><b>${x[0]}</b><p>${x[1]}</p></div>`).join('')+'<button class="g" onclick="puz()">Przejdź do zadań</button>'};
+let sk;
+function conn(){if(sk)return sk;if(!window.io){alert('Brak serwera online. W folderze gry uruchom: npm install, potem npm start, i wejdź na http://localhost:8000');return}
+sk=io();
+sk.on('start',d=>{window.FT=d.tm;startG(0,d.c);window.FT=null;G.on=1;G.oe=d.oe;mn.querySelector('b').textContent='🌍 vs '+d.n+' (⭐'+d.oe+')';dr()});
+sk.on('mv',m=>{if(G&&G.on&&!G.over){const x=legal(G.s).find(y=>y.f==m.f&&y.t==m.t);if(x)pl(x,1)}});
+sk.on('rs',()=>endO('Przeciwnik się poddał'));sk.on('left',()=>endO('Przeciwnik się rozłączył'));
+sk.on('rx',i=>{if(G&&G.on)rx(i,1)});return sk}
+function endO(m){if(G&&G.on&&!G.over){G.over=1;fin(1,m)}}
+function online(){const t=+$('#tm').value,s=conn();if(!s)return;mn.innerHTML=`<div class="card" style="text-align:center;max-width:400px;margin:60px auto"><h2>🌍 Szukam przeciwnika…</h2><p>Czekam na gracza z całego świata.</p><button onclick="sk.emit('cq');go('home')">Anuluj</button></div>`;s.emit('q',{n:P.n,e:P.elo,t})}
+function logout(){P.n='';P.img='';sv();go('login')}
+function demo(){P.n='Gracz';sv();go('home')}
+function gl(r){const j=JSON.parse(decodeURIComponent(escape(atob(r.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))));P.n=j.name;P.img=j.picture;sv();go('home')}
+skin();nav();P.n?go('home'):V.login();
+</script></body></html>
