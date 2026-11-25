@@ -41,7 +41,7 @@ const A=[['Skok',0,'translateY(-60%)','none'],['Z lewej',0,'translateX(-300%)','
 const ID=[...S.map((x,i)=>'s'+i),...A.map((x,i)=>'a'+i)],it=id=>id[0]=='s'?S[+id.slice(1)]:A[+id.slice(1)];
 let P;try{P=JSON.parse(localStorage.cp)}catch(e){}
 P=P||{n:'',img:'',elo:800,xp:0,pts:300,own:['s0','a0'],s:'s0',a:'a0',w:0,g:0,st:0,day:''};
-const sv=()=>{try{localStorage.cp=JSON.stringify(P)}catch(e){}},lvl=()=>Math.floor(Math.sqrt(P.xp/40))+1;
+const sv=()=>{try{localStorage.cp=JSON.stringify(P)}catch(e){}push()},lvl=()=>Math.floor(Math.sqrt(P.xp/40))+1;
 function skin(){const k=S[+P.s.slice(1)],r=document.documentElement.style;['l','d','pw','pb','gl'].forEach((n,i)=>r.setProperty('--'+n,k[i+2]))}
 function nav(){$('#nv').innerHTML='<b>♞ SZACHY POLSKA</b>'+[['home','Graj'],['shop','Skrzynki'],['inv','Kolekcja'],['rank','Ranking']].map(x=>`<button onclick="go('${x[0]}')">${x[1]}</button>`).join('')+`<button onclick="logout()">Wyloguj</button><span>${P.img?`<img src="${P.img}" width="26" style="border-radius:50%;vertical-align:middle">`:''} ${P.n} · poz. ${lvl()} · ⭐${P.elo} · 💎${P.pts}</span>`}
 function go(v){if(typeof G!="undefined"&&G&&G.on&&!G.over){G.over=1;sk.emit("rs")}skin();nav();V[v]()}
@@ -122,8 +122,8 @@ home(){mn.innerHTML=`<div class="hero"><h1>♞ SZACHY POLSKA</h1><p>Witaj, ${P.n
 <div class="card"><h3>🧩 Nauka</h3><button onclick="puz()">Zadania</button> <button onclick="go('lek')">Lekcje</button></div></div>`},
 shop(){const d=P.day!=new Date().toDateString();mn.innerHTML=`<div class="card"><h2>Skrzynki</h2><p>Masz 💎${P.pts}. Skrzynka dnia: <button class="g" ${d?'':'disabled'} onclick="daily()">${d?'Odbierz za darmo':'Wróć jutro'}</button></p></div><div class="grid">`+T.map((t,i)=>`<div class="card"><h3>${t.n}</h3><p style="font-size:12px">${R.map((r,j)=>`<span style="color:${RC[j]}">${r} ${t.w[j]}%</span>`).join('<br>')}</p><button class="g" onclick="buy(${i})">Kup za 💎${t.c}</button></div>`).join('')+'</div>'},
 inv(){mn.innerHTML=`<h2>Kolekcja (${P.own.length}/50)</h2><div class="grid">`+ID.map(id=>{const k=it(id),o=P.own.includes(id);return`<div class="it ${o?'':'off'}" style="--rc:${RC[k[1]]}" onclick="eq('${id}',this)">${prev(id)}<b>${o?k[0]:'???'}</b><br><span style="color:${RC[k[1]]}">${R[k[1]]}</span> ${P.s==id||P.a==id?'✔':''}</div>`}).join('')+'</div>'},
-rank(){const nm=['Magnus_PL','Hetman99','SzachMat','KrólowaNocy','Gambit','Roszada','WieżaX','Pionek_Pro','Skoczek','Debiut','Końcówka','Mat_w_3'],L=nm.map((n,i)=>[n,2600-i*130]);L.push([P.n+' (Ty)',P.elo]);L.sort((a,b)=>b[1]-a[1]);
-mn.innerHTML='<div class="card"><h2>Ranking</h2><table>'+L.map((x,i)=>`<tr style="${x[0].includes('(Ty)')?'color:#ffb400':''}"><td>#${i+1}</td><td>${x[0]}</td><td>⭐${x[1]} · ${lg(x[1])}</td></tr>`).join('')+'</table></div>'}};
+rank(){mn.innerHTML=`<div class="card"><h2>🌍 Ranking graczy</h2>${P.sid?'':'<p>Zaloguj się przez Google, żeby pojawić się w rankingu.</p>'}<p>Klik w gracza pokazuje jego postęp.</p><div id="rk">Ładowanie…</div></div>`;
+fetch('/api/rank',{headers:{'x-sid':P.sid||''}}).then(r=>r.json()).then(L=>{window.RK=L;$('#rk').innerHTML=L.length?'<table>'+L.map((x,i)=>`<tr style="cursor:pointer;${x.me?'color:#ffb400':''}" onclick="pf(${i})"><td>#${i+1}</td><td>${x.img?`<img src="${x.img}" width="24" style="border-radius:50%;vertical-align:middle"> `:''}${x.n}</td><td>poz. ${x.lv}</td><td>⭐${x.elo} · ${lg(x.elo)}</td><td>${x.w}/${x.g}</td></tr>`).join('')+'</table>':'Nikt nie ma jeszcze konta. Zaloguj się i zagraj pierwszy!'}).catch(()=>{$('#rk').textContent='Ranking działa tylko z serwerem online (npm start).'})}};
 function eq(id,el){if(!P.own.includes(id))return;if(id[0]=='s'){P.s=id;skin()}else{P.a=id;const k=it(id);el.firstChild.animate([{transform:k[2],opacity:0,filter:k[3]},{transform:'none',opacity:1,filter:'none'}],{duration:800})}sv();setTimeout(V.inv,id[0]=='s'?0:900)}
 const lg=e=>e<900?'Brąz':e<1200?'Srebro':e<1600?'Złoto':e<2000?'Platyna':'Diament',fm=x=>Math.floor(x/60)+':'+String(x%60).padStart(2,'0');
 function tick(){const e=$('#cl');if(!e||!G||G.over||!G.tm)return;const i=G.s.t=='w'?0:1;G.c[i]--;e.textContent=`⚪ ${fm(G.c[0])}  ⚫ ${fm(G.c[1])}`;if(G.c[i]<=0){G.over=1;const w=i?'w':'b';fin(G.bot||G.on?(w==G.h?1:0):.5,'Czas minął! Wygrywają '+(w=='w'?'białe':'czarne'))}}
@@ -148,8 +148,10 @@ sk.on('rs',()=>endO('Przeciwnik się poddał'));sk.on('left',()=>endO('Przeciwni
 sk.on('rx',i=>{if(G&&G.on)rx(i,1)});return sk}
 function endO(m){if(G&&G.on&&!G.over){G.over=1;fin(1,m)}}
 function online(){const t=+$('#tm').value,s=conn();if(!s)return;mn.innerHTML=`<div class="card" style="text-align:center;max-width:400px;margin:60px auto"><h2>🌍 Szukam przeciwnika…</h2><p>Czekam na gracza z całego świata.</p><button onclick="sk.emit('cq');go('home')">Anuluj</button></div>`;s.emit('q',{n:P.n,e:P.elo,t})}
-function logout(){P.n='';P.img='';sv();go('login')}
+function pf(i){const x=RK[i];ov.innerHTML=`<div class="card" style="text-align:center;min-width:280px">${x.img?`<img src="${x.img}" width="64" style="border-radius:50%">`:''}<h2>${x.n}</h2><p>Poziom ${x.lv} · ⭐${x.elo} (${lg(x.elo)})<br>Wygrane ${x.w} z ${x.g} partii (${x.g?Math.round(100*x.w/x.g):0}%)<br>Seria wygranych: ${x.st}<br>Kolekcja: ${x.oc}/50<br>Skin: ${S[+x.s.slice(1)][0]} · Animacja: ${A[+x.a.slice(1)][0]}</p><button class="g" onclick="ov.innerHTML=''">Zamknij</button></div>`}
+function push(){clearTimeout(window.pt);window.pt=setTimeout(()=>{if(P.sid)fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sid:P.sid,p:{elo:P.elo,xp:P.xp,pts:P.pts,own:P.own,s:P.s,a:P.a,w:P.w,g:P.g,st:P.st}})}).catch(()=>{})},800)}
+function logout(){if(P.sid)P={n:'',img:'',elo:800,xp:0,pts:300,own:['s0','a0'],s:'s0',a:'a0',w:0,g:0,st:0,day:''};else{P.n='';P.img=''}sv();go('login')}
 function demo(){P.n='Gracz';sv();go('home')}
-function gl(r){const j=JSON.parse(decodeURIComponent(escape(atob(r.credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))));P.n=j.name;P.img=j.picture;sv();go('home')}
+function gl(r){fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cred:r.credential,local:P})}).then(x=>x.json()).then(d=>{if(d.err)return alert(d.err);Object.assign(P,d.p,{n:d.n,img:d.img,sid:d.sid});sv();go('home')}).catch(()=>alert('Brak połączenia z serwerem gry. Uruchom npm start i wejdź przez http://localhost:8000'))}
 skin();nav();P.n?go('home'):V.login();
 </script></body></html>
